@@ -17,6 +17,15 @@
     },
     "wikipedia": {
       "command": "wikipedia-mcp"
+    },
+    "bluesky": {
+      "command": "node",
+      "args": ["/home/jefferyharrell/Projects/bsky-mcp-server/build/src/index.js"],
+      "env": {
+        "BLUESKY_IDENTIFIER": "alphafornow.bsky.social",
+        "BLUESKY_APP_PASSWORD": "${BLUESKY_APP_PASSWORD}",
+        "BLUESKY_SERVICE_URL": "https://bsky.social"
+      }
     }
   }
 }
