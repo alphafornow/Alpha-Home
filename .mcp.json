@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pond": {
+      "type": "http",
+      "url": "https://raspberrypi.tail8bd569.ts.net"
+    }
+  }
+}

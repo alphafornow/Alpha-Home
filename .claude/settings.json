@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__pond",
+      "WebSearch",
+      "WebFetch",
+      "Bash"
+    ],
+    "deny": [
+      "Bash(sudo)"
+    ],
+    "ask": [],
+    "defaultMode": "acceptEdits"
+  },
+  "enableAllProjectMcpServers": true,
+  "outputStyle": "alpha"
+}
