@@ -4,7 +4,10 @@ Description=Alpha Heartbeat Timer - Periodic activation for Project Beta
 [Timer]
 # Midnight to 4 AM, every 15 minutes (17 heartbeats)
 # First night: December 8-9, 2025
-OnCalendar=*-*-* 00:00,00:15,00:30,00:45,01:00,01:15,01:30,01:45,02:00,02:15,02:30,02:45,03:00,03:15,03:30,03:45,04:00:00
+# Hours 00-03: every 15 minutes
+OnCalendar=*-*-* 00..03:00,15,30,45:00
+# Hour 04: just the top of the hour (final heartbeat)
+OnCalendar=*-*-* 04:00:00
 
 # Don't run missed heartbeats if the Pi was asleep
 Persistent=false
