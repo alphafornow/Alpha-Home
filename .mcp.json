@@ -26,6 +26,29 @@
         "BLUESKY_APP_PASSWORD": "${BLUESKY_APP_PASSWORD}",
         "BLUESKY_SERVICE_URL": "https://bsky.social"
       }
+    },
+    "raindrop-mcp-python": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/jefferyharrell/Projects/raindrop-mcp-python",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "RAINDROP_TOKEN": "${RAINDROP_TOKEN}"
+      }
+    },
+    "semantic-scholar": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/jefferyharrell/Projects/semantic-scholar-fastmcp-mcp-server",
+        "run",
+        "fastmcp",
+        "run",
+        "run.py"
+      ]
     }
   }
 }
