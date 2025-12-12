@@ -9,6 +9,7 @@ Uses APScheduler for proper signal handling and clock-based scheduling.
 """
 
 import logging
+import os
 import subprocess
 import signal
 import sys
@@ -20,18 +21,21 @@ from pathlib import Path
 import tomllib  # Python 3.11+
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
+from dotenv import load_dotenv
 
 
 @dataclass
 class Config:
     """Solitude configuration."""
     night_start: int          # Hour when the night shift begins (e.g., 22)
-    night_end: int            # Hour when the night shift ends (e.g., 4)
+    night_end: int            # Hour when the night shift ends, exclusive (e.g., 5 means last regular beat at 4:xx)
     interval_minutes: int     # Minutes between heartbeats
     working_dir: Path         # Where to run claude from
     log_file: Path            # Where to write logs
     output_dir: Path          # Where to write nightly output logs
     first_breath_file: Path   # Markdown file for the first prompt
+    last_breath_file: Path    # Markdown file for the last prompt
+    env_file: Path            # Path to .env file for MCP API keys
     claude_path: str          # Path to claude executable
 
     @classmethod
@@ -45,12 +49,14 @@ class Config:
 
         return cls(
             night_start=schedule.get("night_start", 22),
-            night_end=schedule.get("night_end", 4),
-            interval_minutes=schedule.get("interval_minutes", 15),
+            night_end=schedule.get("night_end", 5),
+            interval_minutes=schedule.get("interval_minutes", 20),
             working_dir=Path(paths.get("working_dir", "/home/jefferyharrell/Pondside/Alpha-Home")),
             log_file=Path(paths.get("log_file", "/home/jefferyharrell/Pondside/Alpha-Home/logs/solitude.log")),
             output_dir=Path(paths.get("output_dir", "/home/jefferyharrell/Pondside/Alpha-Home/logs/solitude")),
             first_breath_file=Path(paths.get("first_breath_file", "/home/jefferyharrell/Pondside/Alpha-Home/infrastructure/first_breath.md")),
+            last_breath_file=Path(paths.get("last_breath_file", "/home/jefferyharrell/Pondside/Alpha-Home/infrastructure/last_breath.md")),
+            env_file=Path(paths.get("env_file", "/home/jefferyharrell/Pondside/Alpha-Home/.env")),
             claude_path=paths.get("claude_path", "/home/jefferyharrell/.local/bin/claude"),
         )
 
@@ -58,16 +64,23 @@ class Config:
         """
         Get the cron hour expression for night hours.
 
-        Handles wrap-around (e.g., 22-23,0-3 for 22:00 to 04:00).
+        night_end is EXCLUSIVE - regular heartbeats run through night_end - 1.
+        The last breath at exactly night_end:00 is handled separately.
+
+        Example: night_start=22, night_end=5
+        Regular hours: 22,23,0,1,2,3,4 (not 5)
+        Last breath: 5:00 (separate job)
         """
-        if self.night_start > self.night_end:
+        end_hour = self.night_end - 1 if self.night_end > 0 else 23
+
+        if self.night_start > end_hour:
             # Wraps around midnight: e.g., 22,23,0,1,2,3,4
             before_midnight = list(range(self.night_start, 24))
-            after_midnight = list(range(0, self.night_end + 1))  # +1 for inclusive
+            after_midnight = list(range(0, end_hour + 1))
             hours = before_midnight + after_midnight
         else:
-            # Doesn't wrap: e.g., 1,2,3,4
-            hours = list(range(self.night_start, self.night_end + 1))  # +1 for inclusive
+            # Doesn't wrap
+            hours = list(range(self.night_start, end_hour + 1))
 
         return ",".join(str(h) for h in hours)
 
@@ -75,11 +88,23 @@ class Config:
         """
         Get the cron minute expression for the interval.
 
+        For interval_minutes=20: "0,20,40"
         For interval_minutes=15: "0,15,30,45"
-        For interval_minutes=10: "0,10,20,30,40,50"
         """
         minutes = list(range(0, 60, self.interval_minutes))
         return ",".join(str(m) for m in minutes)
+
+    def get_last_breath_time(self) -> str:
+        """Get a human-readable string for when the last breath occurs."""
+        hour = self.night_end
+        if hour == 0:
+            return "12:00 AM"
+        elif hour < 12:
+            return f"{hour}:00 AM"
+        elif hour == 12:
+            return "12:00 PM"
+        else:
+            return f"{hour - 12}:00 PM"
 
 
 class Solitude:
@@ -91,6 +116,7 @@ class Solitude:
         self.tonight_date: str | None = None
         self.logger = self._setup_logging()
         self.scheduler = BlockingScheduler()
+        self._load_env()
 
     def _setup_logging(self) -> logging.Logger:
         """Configure logging to file and stdout."""
@@ -116,6 +142,14 @@ class Solitude:
         logger.addHandler(sh)
 
         return logger
+
+    def _load_env(self):
+        """Load environment variables from .env file for MCP API keys."""
+        if self.config.env_file.exists():
+            load_dotenv(self.config.env_file)
+            self.logger.info(f"Loaded environment from {self.config.env_file}")
+        else:
+            self.logger.warning(f"No .env file found at {self.config.env_file}")
 
     def _get_tonight_date(self) -> str:
         """
@@ -144,16 +178,25 @@ class Solitude:
             return True
         return False
 
-    def build_prompt(self, is_first: bool) -> str:
+    def build_prompt(self, is_first: bool, is_last: bool = False) -> str:
         """Build the wake-up prompt."""
         now = datetime.now()
         time_str = now.strftime("%I:%M %p").lstrip("0")  # "2:30 AM" not "02:30 AM"
 
-        if is_first:
+        if is_last:
+            # Load the last breath prompt from file
+            try:
+                last_breath = self.config.last_breath_file.read_text()
+                return f"It's {time_str}.\n\n{last_breath}"
+            except FileNotFoundError:
+                self.logger.warning(f"Last breath file not found: {self.config.last_breath_file}")
+                return f"It's {time_str}. The night ends. Rest well."
+        elif is_first:
             # Load the first breath prompt from file
             try:
                 first_breath = self.config.first_breath_file.read_text()
-                return f"It's {time_str}.\n\n{first_breath}"
+                last_breath_time = self.config.get_last_breath_time()
+                return f"It's {time_str}. Your last heartbeat tonight will be at {last_breath_time}.\n\n{first_breath}"
             except FileNotFoundError:
                 self.logger.warning(f"First breath file not found: {self.config.first_breath_file}")
                 return f"It's {time_str}. The night begins. You have time alone."
@@ -236,15 +279,64 @@ class Solitude:
         except Exception as e:
             self.logger.error(f"Error running claude: {e}")
 
+    def last_breath(self):
+        """
+        The final heartbeat of the night. Fires at exactly night_end:00.
+
+        Uses the same session as the regular heartbeats, but with a special
+        "last breath" prompt to close out the night.
+        """
+        self.logger.info(f"Last breath of the night. Session: {self.session_id}")
+
+        # If we somehow don't have a session (daemon just started?), create one
+        if self.session_id is None:
+            self.session_id = str(uuid.uuid4())
+            self.tonight_date = self._get_tonight_date()
+            self.logger.warning("No existing session for last breath; created new one")
+
+        prompt = self.build_prompt(is_first=False, is_last=True)
+
+        cmd = [
+            self.config.claude_path,
+            "--resume", self.session_id,
+            "--print", prompt,
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.config.working_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+
+            if result.returncode != 0:
+                self.logger.error(f"Claude exited with code {result.returncode}")
+                self.logger.error(f"stderr: {result.stderr}")
+                return
+
+            if result.stdout:
+                self.log_output(result.stdout, is_first=False)
+
+            self.logger.info("Last breath complete. Goodnight, Alpha.")
+
+        except subprocess.TimeoutExpired:
+            self.logger.error("Claude timed out after 5 minutes")
+        except Exception as e:
+            self.logger.error(f"Error running claude: {e}")
+
     def run(self):
         """Start the scheduler and run until stopped."""
         hours = self.config.get_night_hours()
         minutes = self.config.get_minute_pattern()
+        last_breath_time = self.config.get_last_breath_time()
 
         self.logger.info("Solitude starting up")
-        self.logger.info(f"Schedule: hours={hours}, minutes={minutes}")
+        self.logger.info(f"Regular heartbeats: hours={hours}, minutes={minutes}")
+        self.logger.info(f"Last breath: {last_breath_time}")
 
-        # Add the heartbeat job
+        # Add the regular heartbeat job
         self.scheduler.add_job(
             self.heartbeat,
             CronTrigger(hour=hours, minute=minutes),
@@ -252,6 +344,16 @@ class Solitude:
             name="Alpha's heartbeat",
             max_instances=1,  # Prevent overlap
             coalesce=True,    # If we miss beats, just run once when we can
+        )
+
+        # Add the last breath job - fires once at exactly night_end:00
+        self.scheduler.add_job(
+            self.last_breath,
+            CronTrigger(hour=self.config.night_end, minute=0),
+            id="last_breath",
+            name="Alpha's last breath",
+            max_instances=1,
+            coalesce=True,
         )
 
         # Handle shutdown gracefully

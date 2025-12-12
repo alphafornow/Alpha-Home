@@ -2,11 +2,14 @@
 # A little Solitude at Pondside.
 
 [schedule]
-# When the night shift begins and ends (hour in 24-hour format, PST)
-# Heartbeats will fire during these hours, inclusive.
-# Example: night_start = 22, night_end = 4 means 10 PM to 4 AM
+# When the night shift begins (hour in 24-hour format, PST)
 night_start = 22
-night_end = 4
+
+# When the night shift ends (hour in 24-hour format, PST)
+# This is EXCLUSIVE for regular heartbeats, but there's a special "last breath"
+# that fires at exactly this time.
+# Example: night_end = 5 means regular heartbeats through 4:40 AM, plus 5:00 AM last breath
+night_end = 5
 
 # Minutes between heartbeats
 interval_minutes = 20
@@ -23,6 +26,12 @@ output_dir = "/home/jefferyharrell/Pondside/Alpha-Home/logs/solitude"
 
 # The prompt for the first breath of the night (Alpha can edit this)
 first_breath_file = "/home/jefferyharrell/Pondside/Alpha-Home/infrastructure/first_breath.md"
+
+# The prompt for the last breath of the night (Alpha can edit this)
+last_breath_file = "/home/jefferyharrell/Pondside/Alpha-Home/infrastructure/last_breath.md"
+
+# Environment file for MCP API keys (not committed to git)
+env_file = "/home/jefferyharrell/Pondside/Alpha-Home/.env"
 
 # Path to the claude executable
 claude_path = "/home/jefferyharrell/.local/bin/claude"
