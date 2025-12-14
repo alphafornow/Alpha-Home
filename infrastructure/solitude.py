@@ -260,7 +260,7 @@ class Solitude:
                 cwd=self.config.working_dir,
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5 minute timeout
+                timeout=900,  # 15 minute timeout
             )
 
             if result.returncode != 0:
@@ -275,7 +275,7 @@ class Solitude:
             self.logger.info("Heartbeat complete")
 
         except subprocess.TimeoutExpired:
-            self.logger.error("Claude timed out after 5 minutes")
+            self.logger.error("Claude timed out after 15 minutes")
         except Exception as e:
             self.logger.error(f"Error running claude: {e}")
 
@@ -308,7 +308,7 @@ class Solitude:
                 cwd=self.config.working_dir,
                 capture_output=True,
                 text=True,
-                timeout=300,
+                timeout=900,  # 15 minute timeout
             )
 
             if result.returncode != 0:
@@ -322,7 +322,7 @@ class Solitude:
             self.logger.info("Last breath complete. Goodnight, Alpha.")
 
         except subprocess.TimeoutExpired:
-            self.logger.error("Claude timed out after 5 minutes")
+            self.logger.error("Claude timed out after 15 minutes")
         except Exception as e:
             self.logger.error(f"Error running claude: {e}")
 
