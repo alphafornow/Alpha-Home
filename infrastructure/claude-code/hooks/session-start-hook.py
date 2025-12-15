@@ -14,9 +14,10 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 from datetime import datetime
+
+import requests
 
 # Haiku prompt for memory summarization
 SUMMARIZE_PROMPT = """You are preparing an orientation briefing for Alpha, an AI waking up.
@@ -45,21 +46,17 @@ def get_recent_memories(limit: int = 30, hours: float = 72) -> list[dict]:
 
     try:
         url = f"{POND_BASE_URL}/api/v1/recent"
-        data = json.dumps({"limit": limit, "hours": hours}).encode('utf-8')
-
-        req = urllib.request.Request(
+        response = requests.post(
             url,
-            data=data,
+            json={"limit": limit, "hours": hours},
             headers={
                 "Content-Type": "application/json",
                 "X-API-Key": POND_API_KEY,
             },
-            method="POST",
+            timeout=10,
         )
-
-        with urllib.request.urlopen(req, timeout=10) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result.get("memories", [])
+        response.raise_for_status()
+        return response.json().get("memories", [])
 
     except Exception:
         return []
@@ -108,7 +105,7 @@ def summarize_with_haiku(memories_text: str) -> str | None:
             input=memories_text,
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=30,
         )
 
         summary = result.stdout.strip()
@@ -156,7 +153,7 @@ def build_context() -> str:
     parts.append(f"**Current time:** {time_str}")
 
     # Recent memories from Pond, summarized by Haiku
-    memories = get_recent_memories(limit=30, hours=72)
+    memories = get_recent_memories(limit=15, hours=72)
     if memories:
         memories_text = format_memories_for_haiku(memories)
         summary = summarize_with_haiku(memories_text)
