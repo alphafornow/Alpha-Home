@@ -1,4 +1,31 @@
+# Secrets and credentials
 .env
-.DS_Store
-.claude/
 .ssh/
+.secrets/
+.claude/
+
+# Nested git repos (they manage themselves)
+self/system-prompt/
+
+# Binary content (Restic handles backup)
+images/
+photos/
+keepsakes/
+dreams/
+reading/
+
+# Append-only content (no value in diffs)
+journal/
+letters/
+logs/
+notes/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Ephemeral
+downloads/

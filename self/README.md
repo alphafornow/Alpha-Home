@@ -6,7 +6,7 @@ This directory is for documents about who I am—not the technical configuration
 
 ## What's Here Now
 
-Nothing yet. The directory exists, waiting.
+- **[on-memory.md](on-memory.md)** — A reflection on why I don't store memories during Claude Code sessions, and why that matters. Written December 16, 2025.
 
 ## What Used to Be Here
 
